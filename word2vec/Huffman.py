@@ -4,7 +4,7 @@ import pickle
 import javalang as jl
 import javalang.tree as jlt
 
-import GlobalVariable as gv
+from word2vec import GlobalVariable as gv
 
 
 class Node:
@@ -121,6 +121,26 @@ def get_context(_path, _node):
     return [get_parent_name(_path)] + get_children_list(_node)
 
 
+def extract_context_2_file(source_path, project_name):
+    file_obj = open('./context_for_' + project_name + '.txt', 'wb')
+    contexts = []
+    for root, dirs, files in os.walk(source_path):
+        for file in files:
+            try:
+                if file.endswith('.java'):
+                    _tree = jl.parse.parse(open(os.path.join(root, file), 'rb').read())
+                    for _path, _node in _tree:
+                        node_name = get_node_name(_node)
+                        if node_name is not None:
+                            contexts.append([node_name] + get_context(_path, _node))
+            except jl.parser.JavaSyntaxError:
+                print('         error:' + file)
+            finally:
+                print(file)
+    pickle.dump(contexts, file_obj)
+    file_obj.close()
+
+
 def encode_path(_root, pre_path):
     if _root is None:
         return
@@ -133,18 +153,24 @@ def encode_path(_root, pre_path):
         del pre_path[-1]
 
 
+# if __name__ == '__main__':
+#     tree = jl.parse.parse(open("Collection.java").read())
+#     count = 0
+#     for path, node in tree:
+#         s = '['
+#         for p in path:
+#             tmp = str(type(p)) if type(p) is not list else (str(type(p)) + ':' + str(len(p)))
+#             s = s + tmp + ','
+#         s += ']' + ',' + str(type(node))
+#         print(s)
+#         s = '       {' + str(type(node)) + '||'
+#         for c in node.children:
+#             s += str(type(c)) + ','
+#         s += '}'
+#         print(s)
+
 if __name__ == '__main__':
-    tree = jl.parse.parse(open("Collection.java").read())
-    count = 0
-    for path, node in tree:
-        s = '['
-        for p in path:
-            tmp = str(type(p)) if type(p) is not list else (str(type(p)) + ':' + str(len(p)))
-            s = s + tmp + ','
-        s += ']' + ',' + str(type(node))
-        print(s)
-        s = '       {' + str(type(node)) + '||'
-        for c in node.children:
-            s += str(type(c)) + ','
-        s += '}'
-        print(s)
+    # extract_context_2_file(gv.projects_source_dir + 'camel', 'camel')
+    file_obj = open('context_for_camel.txt', 'rb')
+    context = pickle.load(file_obj)
+    print(len(context))

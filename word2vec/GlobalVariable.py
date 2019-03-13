@@ -12,8 +12,9 @@ types = [jlt.FormalParameter, jlt.BasicType, jlt.PackageDeclaration, jlt.Interfa
 word_to_vec = {}
 word_to_node = {}
 d_type = torch.float64
-device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-params = {'vec_size': 100, 'echo_size': 1, 'learning_rate': 0.0001}
+# device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+device = torch.device("cpu")
+params = {'vec_size': 200, 'echo_size': 1, 'learning_rate': 0.01}
 # projects_source_dir = "C:\\Users\\nero\\Desktop\\papers\\软件测试\\Data\\projects\\"
 projects_source_dir = "R:\\"
 hf_root = None
@@ -21,6 +22,8 @@ training_data = []
 debug_map = {}
 count = 0
 isDebug = True
+requires_grad = False
+sigmoid_threshold = 6
 
 
 def print_debug_map():
