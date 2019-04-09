@@ -49,7 +49,12 @@ projects = {
     'xalan': ['xalan-2.4', 'xalan-2.5', 'xalan-2.6', 'xalan-2.7'],
     'xerces': ['xerces-1.2', 'xerces-1.3', 'xerces-1.4.4']
 }
-candidate = {'num_filter'}
+candidate = {
+    'vec_size': [4, 8, 16, 32, 64, 128, 256],
+    'number_of_filter': [10, 20, 50, 100, 150, 200],
+    'filter_length': [2, 3, 5, 10, 20, 50, 100],
+    'hidden_unit': [10, 20, 30, 50, 100, 150, 200, 250]
+}
 
 
 class GlobalVariable:
@@ -61,17 +66,18 @@ class GlobalVariable:
     # 用于四舍五入
     round_threshold = 0.5
 
-    w2v_cnn_params = {'Model': 'cnn', 'vec_size': 50, 'learning_rate': 0.01, 'round_threshold': 0.5,
-                      'token_vec_length': 0, 'batch_size': 32, 'filters': 50, 'kernel_size': 20, 'mcc': None,
-                      'hand_craft_input_dim': 20, 'pool_size': 2, 'hidden_units': 150, 'epochs': 1, 'metrics': ['acc'],
-                      'project_name': None, 'train_project': None, 'test_project': None, 'time_stamp': None,
-                      'auc': None, 'f1-score': None, 'use_cuda': True}
-
-    # w2v_cnn_params = {'Model': 'cnn', 'vec_size': 80, 'learning_rate': 0.01, 'round_threshold': 0.5,
+    # #for test
+    # w2v_cnn_params = {'Model': 'cnn', 'vec_size': 50, 'learning_rate': 0.01, 'round_threshold': 0.5,
     #                   'token_vec_length': 0, 'batch_size': 32, 'filters': 50, 'kernel_size': 20, 'mcc': None,
-    #                   'hand_craft_input_dim': 20, 'pool_size': 2, 'hidden_units': 150, 'epochs': 10, 'metrics': ['acc'],
+    #                   'hand_craft_input_dim': 20, 'pool_size': 2, 'hidden_units': 150, 'epochs': 1, 'metrics': ['acc'],
     #                   'project_name': None, 'train_project': None, 'test_project': None, 'time_stamp': None,
     #                   'auc': None, 'f1-score': None, 'use_cuda': True}
+
+    w2v_cnn_params = {'Model': 'cnn', 'vec_size': 80, 'learning_rate': 0.01, 'round_threshold': 0.5,
+                      'token_vec_length': 0, 'batch_size': 32, 'filters': 10, 'kernel_size': 5, 'mcc': None,
+                      'hand_craft_input_dim': 20, 'pool_size': 2, 'hidden_units': 100, 'epochs': 15, 'metrics': ['acc'],
+                      'project_name': None, 'train_project': None, 'test_project': None, 'time_stamp': None,
+                      'auc': None, 'f1-score': None, 'use_cuda': True}
 
     plain_cnn_params = {'input_dim': 3709, 'output_dim': 30, 'input_length': 2405, 'filters': 50, 'kernel_size': 20,
                         'pool_size': 2, 'hidden_units': 150, 'hand_craft_input_dim': 20, 'metrics': ['acc'],
@@ -83,6 +89,7 @@ class GlobalVariable:
     config = {'logging_level': logging.WARNING,
               'logging_format': '%(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
               'remake': False}
+
     metrics = ['acc']
     projects_source_dir = "J:\\sdp\\projects\\"
     csv_dir = "J:\\sdp\\csvs\\"
@@ -100,6 +107,11 @@ class GlobalVariable:
     word_to_vec_path = data_path + 'word_to_vec'
     result_path = data_path + 'result'
     current_project = None
+
+    @staticmethod
+    def get_steps_per_epoch(data_size):
+        return (data_size + GlobalVariable.w2v_cnn_params['batch_size'] - 1) / GlobalVariable.w2v_cnn_params[
+            'batch_size']
 
     @staticmethod
     def load_hf_tree(project_name):
@@ -195,8 +207,11 @@ class GlobalVariable:
         if file_name is None:
             return
         m2 = hashlib.md5()
-        file_name = m2.update(file_name.encode('utf-8'))
+        m2.update(file_name.encode('utf-8'))
+        file_name = m2.hexdigest()
         cache_path = os.path.join(GlobalVariable.data_cache, file_name)
+        if not os.path.exists(GlobalVariable.data_cache):
+            os.mkdir(GlobalVariable.data_cache)
         with open(cache_path, 'wb') as file_obj:
             pickle.dump(obj, file_obj)
 
@@ -205,7 +220,8 @@ class GlobalVariable:
         if file_name is None or GlobalVariable.config['remake']:
             return None
         m2 = hashlib.md5()
-        file_name = m2.update(file_name.encode('utf-8'))
+        m2.update(file_name.encode('utf-8'))
+        file_name = m2.hexdigest()
         cache_path = os.path.join(GlobalVariable.data_cache, file_name)
         if not os.path.exists(cache_path):
             return None

@@ -22,11 +22,11 @@ def build_huffman_tree(project_name):
             full_class_name = get_full_class_name(root, file)
             if full_class_name is not None and full_class_name in class_names:
                 with open(os.path.join(root, file), "r") as _file_obj:
-                    content = _file_obj.read()
-                    if content is None:
-                        continue
-                    logging.debug('building huffman tree,processing file %s  ' % os.path.join(root, file))
                     try:
+                        content = _file_obj.read()
+                        if content is None:
+                            continue
+                        logging.debug('building huffman tree,processing file %s  ' % os.path.join(root, file))
                         ast_tree = jl.parse.parse(content)
                         for _path, _node in ast_tree:
                             name = get_node_name(_node)

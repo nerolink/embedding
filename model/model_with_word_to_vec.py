@@ -1,5 +1,5 @@
 from common.GlobalVariable import GlobalVariable as gv
-from common.utils import batch_getter, extract_hand_craft_file_name_with_label, print_result
+from common.utils import batch_getter, extract_hand_craft_file_name_with_label, print_result, padding_for_vec_batch
 import Huffman as hf
 import HierarchicalSoftmax as hs
 from keras.models import Model
@@ -83,9 +83,15 @@ def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_han
     :param dict_file_label:
     :return:[[label,[hand_craft_data],full_class_name,[...],[...],]]
     """
-    result = []
     gv.load_word2vec(project_name)
     gv.load_token_vec_length(project_name)
+    method_name = 'get_file_data_p'
+    cache_name = '%s_%s_%d' % (path, method_name, gv.w2v_cnn_params['vec_size'])
+    result = gv.load_cache(cache_name)
+    if result is not None:
+        logging.warning('load cache success in %s' % cache_name)
+        return result
+    result = []
     for root, dirs, files in os.walk(path):
         for file_name in files:
             full_class_name = hf.get_full_class_name(root, file_name)
@@ -112,7 +118,47 @@ def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_han
                     logging.error('parse file %s unicode decode error' % os.path.join(root, file_name))
                 finally:
                     file_obj.close()
+    gv.dump_cache(cache_name, result)
     return result
+
+
+def generator_xy(batch_size, desire_length, data_x, data_y):
+    """
+    返回x，y的generator
+    :param desire_length:
+    :param batch_size:
+    :param data_x:
+    :param data_y:
+    :return:
+    """
+    length = len(data_x)
+    count = 0
+    step = 0
+    while True:
+        if count >= length:
+            count = 0
+            step = 0
+        end = count + batch_size if count + batch_size <= length else length
+        print('----> batch:%d ' % step)
+        yield np.array(padding_for_vec_batch(data_x[count:end], desire_length)), np.array(data_y[count:end])
+        step += 1
+        count = end
+
+
+def generator_xhy(batch_size, desire_length, data_x, data_h, data_y):
+    length = len(data_x)
+    count = 0
+    step = 0
+    while True:
+        if count >= length:
+            count = 0
+            step = 0
+        end = count + batch_size if count + batch_size <= length else length
+        print('----> batch:%d ' % step)
+        yield np.array(padding_for_vec_batch(data_x[count:end], desire_length)), np.array(data_h[count:end]), np.array(
+            data_y[count:end])
+        step += 1
+        count = end
 
 
 def train_and_test_cnn(project_name, train_name, test_name):
@@ -120,20 +166,26 @@ def train_and_test_cnn(project_name, train_name, test_name):
         get_train_and_test_data(project_name, train_name, test_name)
     gv.load_token_vec_length(project_name)
     cnn_model = get_cnn(gv.w2v_cnn_params)
+
     for epoch in range(gv.w2v_cnn_params['epochs']):
         print('epoch:%d ' % epoch)
         for step, (x, y) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
             print('----> batch:%d ' % step)
-            x = padding(x, gv.w2v_cnn_params['token_vec_length'])
+            x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
             x = np.array(x)
             cnn_model.train_on_batch([x], y)
             del x
+    # cnn_model.fit_generator(
+    #     generator=generator_xy(gv.w2v_cnn_params['batch_size'], gv.w2v_cnn_params['token_vec_length'], train_data_x,
+    #                            train_data_y), epochs=gv.w2v_cnn_params['epochs'],
+    #     steps_per_epoch=gv.get_steps_per_epoch(len(train_data_y)))
+
     del train_data_x
     del train_data_y
     p_y = np.array([])
     for step, (x, y) in enumerate(
             batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_y)):
-        x = padding(x, gv.w2v_cnn_params['token_vec_length'])
+        x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
         x = np.array(x)
         _result = cnn_model.predict_on_batch(x)
         _result = _result.squeeze()
@@ -155,7 +207,7 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
         for step, (x, hc, y) in enumerate(
                 batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft, train_data_y)):
             print('----> batch:%d ' % step)
-            x = padding(x, gv.w2v_cnn_params['token_vec_length'])
+            x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
             cnn_model_p.train_on_batch([x, hc], y)
             del x
     del train_data_x
@@ -164,7 +216,7 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
     p_y = np.array([])
     for step, (x, hc, y) in enumerate(
             batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_hand_craft, test_data_y)):
-        x = padding(x, gv.w2v_cnn_params['token_vec_length'])
+        x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
         _result = cnn_model_p.predict_on_batch([x, hc])
         _result = _result.squeeze()
         p_y = np.hstack((_result, p_y))
@@ -209,26 +261,6 @@ def get_train_and_test_data(project_name, train_name, test_name):
     test_data_y = _labels
     test_data_hand_craft = [x[1] for x in _features]
     return train_data_x, train_data_hand_craft, train_data_y, test_data_x, test_data_hand_craft, test_data_y
-
-
-def padding(batch_vec, desire_length):
-    """
-    :param batch_vec:
-    [
-    [[...],[...]...],
-    [[...],[...]...]
-    ]
-    :param desire_length:
-    :return:
-    """
-    result = []
-    padding_line = np.zeros_like(batch_vec[0][0]).tolist()
-    for vec in batch_vec:
-        diff = desire_length - len(vec)
-        result.append(vec)
-        for i in range(diff):
-            result[-1].append(padding_line)
-    return result
 
 
 if __name__ == '__main__':

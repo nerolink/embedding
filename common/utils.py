@@ -332,6 +332,27 @@ def padding_for_token_batch(ast_vecs, target_len):
     return result
 
 
+def padding_for_vec_batch(batch_vec, desire_length):
+    """
+    给word2vec后的ast向量batch补0
+    :param batch_vec:
+    [
+    [[...],[...]...],
+    [[...],[...]...]
+    ]
+    :param desire_length:
+    :return:
+    """
+    result = []
+    padding_line = np.zeros_like(batch_vec[0][0]).tolist()
+    for vec in batch_vec:
+        diff = desire_length - len(vec)
+        result.append(vec)
+        for i in range(diff):
+            result[-1].append(padding_line)
+    return result
+
+
 def extract_hand_craft_file_name_with_label(train_path, test_path):
     """
     输入csv文件的相对路径，返回文件名列表
