@@ -1,31 +1,24 @@
-import os
-
-import torch.nn as nn
+from torch import nn
+import torch.sparse
+import javalang as jl
 import javalang.tree as jlt
-import torch
 
 
-class A:
-    attrs = ('a', 'b', 'c')
+class CNN(nn.Module):
 
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv1d(
+            in_channels=2,
+            kernel_size=4,
+            out_channels=4
+        )
 
-class B(A):
-    attrs = ('d', 'e',)
+    def forward(self, x):
+        self.conv.forward(x)
 
-
-# if __name__ == '__main__':
-#     xw = torch.rand(5, requires_grad=True)
-#     p = 1
-#     for i in range(0, 100):
-#         t = torch.rand(5, requires_grad=True)
-#         p *= torch.sigmoid(xw.dot(t))
-#     p.backward()
-#     print(xw.grad)
 
 if __name__ == '__main__':
-    count = 0
-    for root, dirs, files in os.walk('R:\\camel'):
-        for file in files:
-            if file.endswith('.java'):
-                count += 1
-    print(count)
+    ast_tree = jl.parse.parse(
+        open('J:/sdp/projects/poi-2.0/src/java/org/apache/poi/hssf/record/Margin.java', 'rb').read())
+

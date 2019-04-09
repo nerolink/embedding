@@ -1,7 +1,26 @@
 <component name="ProjectDictionaryState">
   <dictionary name="nero">
     <words>
+      <w>asctime</w>
+      <w>conv</w>
+      <w>crossentropy</w>
+      <w>csvs</w>
       <w>cuda</w>
+      <w>datas</w>
+      <w>hscnnp</w>
+      <w>indptr</w>
+      <w>javalang</w>
+      <w>jedit</w>
+      <w>lbfgs</w>
+      <w>levelname</w>
+      <w>openpyxl</w>
+      <w>relu</w>
+      <w>rmsprop</w>
+      <w>softmax</w>
+      <w>vecs</w>
+      <w>xalan</w>
+      <w>xerces</w>
+      <w>xlsx</w>
     </words>
   </dictionary>
 </component>
