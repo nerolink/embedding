@@ -69,12 +69,17 @@ def train_and_test_cnn(project_name, train_name, test_name, dict_params):
     _test_x = test_data.get_ast_vectors()
     _test_y = test_data.get_labels()
     dict_params['input_length'] = max(train_data.get_vec_len(), test_data.get_vec_len())
-    _model = get_cnn_model(dict_params)
-    for epoch in range(dict_params['epochs']):
-        print('epoch:%d ' % epoch)
-        for step, (x, y) in enumerate(batch_getter(dict_params['batch_size'], _train_x, _train_y)):
-            x = padding_for_token_batch(x, dict_params['input_length'])
-            _model.train_on_batch([x], y)
+    model_name = '%s~~%s' % (train_name, 'cnn_plain')
+    _model = gv.load_model(model_name)
+    if _model is None:
+        _model = get_cnn_model(dict_params)
+        for epoch in range(dict_params['epochs']):
+            print('epoch:%d ' % epoch)
+            for step, (x, y) in enumerate(batch_getter(dict_params['batch_size'], _train_x, _train_y)):
+                x = padding_for_token_batch(x, dict_params['input_length'])
+                _model.train_on_batch([x], y)
+        gv.dump_model(_model, model_name)
+
     _y_predict = []
     for step, (x, y) in enumerate(batch_getter(dict_params['batch_size'], _test_x, _test_y)):
         x = padding_for_token_batch(x, dict_params['input_length'])
@@ -111,14 +116,20 @@ def train_and_test_cnn_p(project_name, train_name, test_name, dict_params):
     _test_x = test_data.get_ast_vectors()
     _test_y = test_data.get_labels()
     dict_params['input_length'] = max(train_data.get_vec_len(), test_data.get_vec_len())
-    _model = get_cnn_model_p(dict_params)
-    for epoch in range(dict_params['epochs']):
-        print('epoch:%d ' % epoch)
-        for step, (x, hc, y) in enumerate(batch_getter(dict_params['batch_size'], _train_x, _train_hc, _train_y)):
-            print('batch------- %s' % step)
-            x = padding_for_token_batch(x, dict_params['input_length'])
-            _model.train_on_batch(x=[x, hc], y=y)
-            del x
+    model_name = '%s~~%s' % (train_name, 'cnn_plus_plain')
+
+    _model = gv.load_model(model_name)
+    if _model is None:
+        _model = get_cnn_model_p(dict_params)
+        for epoch in range(dict_params['epochs']):
+            print('epoch:%d ' % epoch)
+            for step, (x, hc, y) in enumerate(batch_getter(dict_params['batch_size'], _train_x, _train_hc, _train_y)):
+                print('batch------- %s' % step)
+                x = padding_for_token_batch(x, dict_params['input_length'])
+                _model.train_on_batch(x=[x, hc], y=y)
+                del x
+        gv.dump_model(_model, model_name)
+
     _y_predict = np.array([])
     for step, (x, hc) in enumerate(batch_getter(dict_params['batch_size'], _test_x, _test_hc)):
         x = padding_for_token_batch(x, dict_params['input_length'])

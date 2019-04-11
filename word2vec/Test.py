@@ -2,6 +2,7 @@ from torch import nn
 import torch.sparse
 import javalang as jl
 import javalang.tree as jlt
+from model.DBN import DBN
 
 
 class CNN(nn.Module):
@@ -19,6 +20,10 @@ class CNN(nn.Module):
 
 
 if __name__ == '__main__':
-    ast_tree = jl.parse.parse(
-        open('J:/sdp/projects/poi-2.0/src/java/org/apache/poi/hssf/record/Margin.java', 'rb').read())
+    import pickle
+    from GlobalVariable import GlobalVariable as gv
+
+    dbn = DBN(layers=[1, 1, 1, 1], params=gv.dbn_params)
+    with open('./dbn_obj', 'wb') as file_obj:
+        pickle.dump(dbn, file_obj)
 

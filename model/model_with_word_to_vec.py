@@ -165,21 +165,19 @@ def train_and_test_cnn(project_name, train_name, test_name):
     train_data_x, _, train_data_y, test_data_x, _, test_data_y = \
         get_train_and_test_data(project_name, train_name, test_name)
     gv.load_token_vec_length(project_name)
-    cnn_model = get_cnn(gv.w2v_cnn_params)
-
-    for epoch in range(gv.w2v_cnn_params['epochs']):
-        print('epoch:%d ' % epoch)
-        for step, (x, y) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
-            print('----> batch:%d ' % step)
-            x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
-            x = np.array(x)
-            cnn_model.train_on_batch([x], y)
-            del x
-    # cnn_model.fit_generator(
-    #     generator=generator_xy(gv.w2v_cnn_params['batch_size'], gv.w2v_cnn_params['token_vec_length'], train_data_x,
-    #                            train_data_y), epochs=gv.w2v_cnn_params['epochs'],
-    #     steps_per_epoch=gv.get_steps_per_epoch(len(train_data_y)))
-
+    model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_w2v')
+    cnn_model = gv.load_model(model_name)
+    if cnn_model is None:
+        cnn_model = get_cnn(gv.w2v_cnn_params)
+        for epoch in range(gv.w2v_cnn_params['epochs']):
+            print('epoch:%d ' % epoch)
+            for step, (x, y) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
+                print('----> batch:%d ' % step)
+                x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+                x = np.array(x)
+                cnn_model.train_on_batch([x], y)
+                del x
+        gv.dump_model(cnn_model, 'cnn_w2v')
     del train_data_x
     del train_data_y
     p_y = np.array([])
@@ -193,6 +191,8 @@ def train_and_test_cnn(project_name, train_name, test_name):
     p_y = np.array(p_y, dtype=np.float64)
     print_result(y_true=test_data_y, y_pred=p_y, dict_param=gv.w2v_cnn_params, project_name=project_name,
                  train_name=train_name, test_name=test_name, model='cnn_w2v', sheet_name='cnn_w2v')
+    gv.w2v_cnn_params['train_project'] = train_name
+    gv.w2v_cnn_params['test_project'] = test_name
     import keras.backend as k
     k.clear_session()
 
@@ -201,15 +201,20 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
     train_data_x, train_data_hand_craft, train_data_y, test_data_x, test_data_hand_craft, test_data_y = \
         get_train_and_test_data(project_name, train_name, test_name)
     gv.load_token_vec_length(project_name)
-    cnn_model_p = get_cnn_plus(gv.w2v_cnn_params)
-    for epoch in range(gv.w2v_cnn_params['epochs']):
-        print('epoch:%d ' % epoch)
-        for step, (x, hc, y) in enumerate(
-                batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft, train_data_y)):
-            print('----> batch:%d ' % step)
-            x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
-            cnn_model_p.train_on_batch([x, hc], y)
-            del x
+    model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_plus_w2v')
+
+    cnn_model_p = gv.load_model(model_name)
+    if cnn_model_p is None:
+        cnn_model_p = get_cnn_plus(gv.w2v_cnn_params)
+        for epoch in range(gv.w2v_cnn_params['epochs']):
+            print('epoch:%d ' % epoch)
+            for step, (x, hc, y) in enumerate(
+                    batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft, train_data_y)):
+                print('----> batch:%d ' % step)
+                x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+                cnn_model_p.train_on_batch([x, hc], y)
+                del x
+        gv.dump_model(cnn_model_p, 'cnn_plus_w2v')
     del train_data_x
     del train_data_hand_craft
     del train_data_y
@@ -223,6 +228,8 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
     p_y = np.array(p_y, dtype=np.float64)
     print_result(y_true=test_data_y, y_pred=p_y, dict_param=gv.w2v_cnn_params, project_name=project_name,
                  train_name=train_name, test_name=test_name, model='cnn_plus_w2v', sheet_name='cnn_w2v')
+    gv.w2v_cnn_params['train_project'] = train_name
+    gv.w2v_cnn_params['test_project'] = test_name
     import keras.backend as k
     k.clear_session()
 

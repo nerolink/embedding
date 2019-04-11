@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from common.GlobalVariable import GlobalVariable as gv
-from common.utils import get_all_need_class_name, ProjectData, get_md_data, print_result
+from common.utils import get_all_need_class_name, ProjectData, get_md_data, print_result, padding_for_token_batch
 import warnings
 
 warnings.simplefilter("ignore", Warning)
@@ -233,24 +233,33 @@ def train_and_test_dbn(project_name, train_name, test_name, dict_params):
     _train_ast = train_data.get_ast_vectors()
     _test_ast = test_data.get_ast_vectors()
     from sklearn.preprocessing import minmax_scale
+    _train_ast = padding_for_token_batch(_train_ast, train_data.get_vec_len())
     _train_ast = minmax_scale(_train_ast)
-    _test_ast = minmax_scale(_test_ast)
     _layers = list()
     _layers.append(len(_train_ast[0]))
     for i in range(dict_params['hidden_layer_num']):
         _layers.append(dict_params['output_size'])
-    dbn = DBN(layers=_layers, params=dict_params)
-    logging.INFO('training dbn .......')
-    dbn.train(_train_ast)
+
+    dbn_name = '%s~~%s' % (train_name, 'dbn')
+    dbn = gv.load_dbn(dbn_name)
+    if dbn is None:
+        dbn = DBN(layers=_layers, params=dict_params)
+        logging.info('training dbn .......')
+        dbn.train(_train_ast)
+        gv.dump_dbn(dbn, dbn_name)
+
     c_train_x = dbn.dbn_up(_train_ast)
-    c_test_x = dbn.dbn_up(_test_ast)
     _train_label = train_data.get_labels()
     _test_label = test_data.get_labels()
     from sklearn.linear_model import LogisticRegression
 
     cls = LogisticRegression(solver='lbfgs')
     cls.fit(c_train_x, _train_label)
-
+    del _train_ast
+    del train_data
+    _test_ast = padding_for_token_batch(_test_ast, test_data.get_vec_len())
+    _test_ast = minmax_scale(_test_ast)
+    c_test_x = dbn.dbn_up(_test_ast)
     _y_predict = cls.predict(c_test_x)
     print_result(y_true=_test_label, y_pred=_y_predict, model='dbn', project_name=project_name,
                  train_name=train_name, test_name=test_name, dict_param=dict_params, sheet_name='dbn')
@@ -276,25 +285,38 @@ def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params):
     _train_hc = np.array(train_data.get_hand_craft_vectors())
     _test_hc = np.array(test_data.get_hand_craft_vectors())
     from sklearn.preprocessing import minmax_scale
+    _train_ast = padding_for_token_batch(_train_ast, train_data.get_vec_len())
     _train_ast = minmax_scale(_train_ast)
-    _test_ast = minmax_scale(_test_ast)
     _layers = list()
     _layers.append(len(_train_ast[0]))
     for i in range(dict_params['hidden_layer_num']):
         _layers.append(dict_params['output_size'])
-    dbn = DBN(layers=_layers, params=dict_params)
-    logging.INFO('training dbn plus.......')
-    dbn.train(_train_ast)
+
+    dbn_name = '%s~~%s' % (train_name, 'dbn_plus')
+    dbn = gv.load_dbn(dbn_name)
+    if dbn is None:
+        dbn = DBN(layers=_layers, params=dict_params)
+        logging.info('training dbn plus.......')
+        dbn.train(_train_ast)
+        gv.dump_dbn(dbn, dbn_name)
+
     c_train_x = dbn.dbn_up(_train_ast)
-    c_test_x = dbn.dbn_up(_test_ast)
     c_train_x = np.hstack((c_train_x, _train_hc))
-    c_test_x = np.hstack((c_test_x, _test_hc))
     _train_label = train_data.get_labels()
     _test_label = test_data.get_labels()
     from sklearn.linear_model import LogisticRegression
-
     cls = LogisticRegression(solver='lbfgs')
     cls.fit(c_train_x, _train_label)
+
+    del train_data
+    del _train_ast
+    del _train_hc
+    del c_train_x
+
+    _test_ast = padding_for_token_batch(_test_ast, test_data.get_vec_len())
+    _test_ast = minmax_scale(_test_ast)
+    c_test_x = dbn.dbn_up(_test_ast)
+    c_test_x = np.hstack((c_test_x, _test_hc))
 
     _y_predict = cls.predict(c_test_x)
     print_result(y_true=_test_label, y_pred=_y_predict, model='dbn_plus', project_name=project_name,

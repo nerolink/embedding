@@ -9,6 +9,7 @@ from imblearn.over_sampling import RandomOverSampler
 from openpyxl import load_workbook
 import hashlib
 import logging
+from keras.models import load_model
 
 types = [jlt.FormalParameter, jlt.BasicType, jlt.PackageDeclaration, jlt.InterfaceDeclaration,
          jlt.CatchClauseParameter, jlt.ClassDeclaration, jlt.MemberReference, jlt.SuperMemberReference,
@@ -37,20 +38,22 @@ sheet_names = ['cnn_w2c', 'cnn_plain', 'dbn']
 # }
 
 projects = {
-    # 'camel': ['camel-1.2', 'camel-1.4', 'camel-1.6'],
-    # 'forrest': ['forrest-0.6', 'forrest-0.7', 'forrest-0.8'],
-    # 'jedit': ['jedit-3.2.1', 'jedit-4.0', 'jedit-4.1', 'jedit-4.2', 'jedit-4.3'],
+    'camel': ['camel-1.2', 'camel-1.4', 'camel-1.6'],
+    'forrest': ['forrest-0.6', 'forrest-0.7', 'forrest-0.8'],
+    'jedit': ['jedit-3.2.1', 'jedit-4.0', 'jedit-4.1', 'jedit-4.2', 'jedit-4.3'],
     # 'ivy': ['ivy-1.1', 'ivy-1.4', 'ivy-2.0'],
-    # 'log4j': ['log4j-1.0', 'log4j-1.1', 'log4j-1.2'],
-    # 'lucene': ['lucene-2.0', 'lucene-2.2', 'lucene-2.4'],
-    # 'poi': ['poi-1.5', 'poi-2.0', 'poi-2.5.1', 'poi-3.0'],
-    # 'synapse': ['synapse-1.0', 'synapse-1.1', 'synapse-1.2'],
-    # 'velocity': ['velocity-1.4', 'velocity-1.5', 'velocity-1.6.1'],
+    'log4j': ['log4j-1.0', 'log4j-1.1', 'log4j-1.2'],
+    'lucene': ['lucene-2.0', 'lucene-2.2', 'lucene-2.4'],
+    'poi': ['poi-1.5', 'poi-2.0', 'poi-2.5.1', 'poi-3.0'],
+    'synapse': ['synapse-1.0', 'synapse-1.1', 'synapse-1.2'],
+    'velocity': ['velocity-1.4', 'velocity-1.5', 'velocity-1.6.1'],
     'xalan': ['xalan-2.4', 'xalan-2.5', 'xalan-2.6', 'xalan-2.7'],
     'xerces': ['xerces-1.2', 'xerces-1.3', 'xerces-1.4.4']
 }
 candidate = {
-    'vec_size': [4, 8, 16, 32, 64, 128, 256],
+    # 'vec_size': [4, 8, 16, 32, 64, 128, 256],
+    # 'vec_size': [128, 256],
+    'vec_size': [30],
     'number_of_filter': [10, 20, 50, 100, 150, 200],
     'filter_length': [2, 3, 5, 10, 20, 50, 100],
     'hidden_unit': [10, 20, 30, 50, 100, 150, 200, 250]
@@ -79,14 +82,14 @@ class GlobalVariable:
                       'project_name': None, 'train_project': None, 'test_project': None, 'time_stamp': None,
                       'auc': None, 'f1-score': None, 'use_cuda': True}
 
-    plain_cnn_params = {'input_dim': 3709, 'output_dim': 30, 'input_length': 2405, 'filters': 50, 'kernel_size': 20,
-                        'pool_size': 2, 'hidden_units': 150, 'hand_craft_input_dim': 20, 'metrics': ['acc'],
-                        'batch_size': 32, 'epochs': 1, 'imbalance': RandomOverSampler(), 'regenerate': False}
+    plain_cnn_params = {'input_dim': 3709, 'output_dim': 30, 'input_length': 2405, 'filters': 10, 'kernel_size': 5,
+                        'pool_size': 2, 'hidden_units': 100, 'hand_craft_input_dim': 20, 'metrics': ['acc'],
+                        'batch_size': 32, 'epochs': 15, 'imbalance': RandomOverSampler(), 'regenerate': False}
 
     dbn_params = {'output_size': 100, 'hidden_layer_num': 3, 'epochs': 1, 'batch_size': 10,
                   'imbalance': RandomOverSampler(), 'learning_rate': 0.1, 'regenerate': False}
 
-    config = {'logging_level': logging.WARNING,
+    config = {'logging_level': logging.CRITICAL,
               'logging_format': '%(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
               'remake': False}
 
@@ -101,11 +104,12 @@ class GlobalVariable:
     requires_grad = False
     sigmoid_threshold = 6
     data_path = '../data/'
-    data_cache = '../data/cache'
+    data_cache = data_path + 'cache'
     hf_tree_path = data_path + 'hf_tree'
     token_len_path = data_path + 'token_vec_len'
     word_to_vec_path = data_path + 'word_to_vec'
     result_path = data_path + 'result'
+    model_path = data_path + 'model'
     current_project = None
 
     @staticmethod
@@ -226,6 +230,36 @@ class GlobalVariable:
         if not os.path.exists(cache_path):
             return None
         with open(cache_path, 'rb') as file_obj:
+            return pickle.load(file_obj)
+
+    @staticmethod
+    def dump_model(model, model_name):
+        model_path = os.path.join(GlobalVariable.model_path, model_name)
+        if not os.path.exists(GlobalVariable.model_path):
+            os.mkdir(GlobalVariable.model_path)
+        model.save(model_path)
+
+    @staticmethod
+    def load_model(model_name):
+        model_path = os.path.join(GlobalVariable.model_path, model_name)
+        if not os.path.exists(model_path):
+            return None
+        return load_model(model_path)
+
+    @staticmethod
+    def dump_dbn(dbn_model, model_name):
+        model_path = os.path.join(GlobalVariable.model_path, model_name)
+        if not os.path.exists(GlobalVariable.model_path):
+            os.mkdir(GlobalVariable.model_path)
+        with open(model_path, 'wb') as file_obj:
+            pickle.dump(dbn_model, file_obj)
+
+    @staticmethod
+    def load_dbn(model_name):
+        model_path = os.path.join(GlobalVariable.model_path, model_name)
+        if not os.path.exists(model_path):
+            return None
+        with open(model_path, 'rb') as file_obj:
             return pickle.load(file_obj)
 
     @staticmethod

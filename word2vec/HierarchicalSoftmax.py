@@ -107,6 +107,7 @@ def train(project_name):
     logging.warning('start walk')
     file_count = 0
     class_names = get_all_need_class_name(project_name)
+    gv.w2v_cnn_params['token_vec_length'] = 0
     for root, dirs, files in os.walk(gv.projects_source_dir):
         if not root.__contains__(project_name):
             continue
