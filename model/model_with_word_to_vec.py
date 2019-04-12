@@ -61,23 +61,11 @@ def get_cnn_plus(dict_params):
     return dp_cnn_model
 
 
-def padding_sparse(file_vec, desire_length):
-    rows = []
-    cols = []
-    v = []
-    for i in range(len(file_vec)):
-        for j in range(len(file_vec[0])):
-            rows.append(i)
-            cols.append(j)
-            v.append(file_vec[i][j])
-    return sparse.FloatTensor(torch.LongTensor([rows, cols]), torch.FloatTensor(v),
-                              torch.Size([desire_length, len(file_vec[0])]))
-
-
 def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_hand_craft):
     """
+    获取一个项目的标签，手工标注特征，完整类名，word2vec表示
     :param dict_file_hand_craft
-    :param project_name
+    :param project_name 项目源文件
     :param path:
     :param set_file:
     :param dict_file_label:
@@ -120,45 +108,6 @@ def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_han
                     file_obj.close()
     gv.dump_cache(cache_name, result)
     return result
-
-
-def generator_xy(batch_size, desire_length, data_x, data_y):
-    """
-    返回x，y的generator
-    :param desire_length:
-    :param batch_size:
-    :param data_x:
-    :param data_y:
-    :return:
-    """
-    length = len(data_x)
-    count = 0
-    step = 0
-    while True:
-        if count >= length:
-            count = 0
-            step = 0
-        end = count + batch_size if count + batch_size <= length else length
-        print('----> batch:%d ' % step)
-        yield np.array(padding_for_vec_batch(data_x[count:end], desire_length)), np.array(data_y[count:end])
-        step += 1
-        count = end
-
-
-def generator_xhy(batch_size, desire_length, data_x, data_h, data_y):
-    length = len(data_x)
-    count = 0
-    step = 0
-    while True:
-        if count >= length:
-            count = 0
-            step = 0
-        end = count + batch_size if count + batch_size <= length else length
-        print('----> batch:%d ' % step)
-        yield np.array(padding_for_vec_batch(data_x[count:end], desire_length)), np.array(data_h[count:end]), np.array(
-            data_y[count:end])
-        step += 1
-        count = end
 
 
 def train_and_test_cnn(project_name, train_name, test_name):
@@ -242,8 +191,7 @@ def get_train_and_test_data(project_name, train_name, test_name):
     source_train_path = gv.projects_source_dir + train_name
     source_test_path = gv.projects_source_dir + test_name
     train_file, test_file, train_label, test_label, train_hand_craft, test_hand_craft = \
-        extract_hand_craft_file_name_with_label(csv_train_path,
-                                                csv_test_path)
+        extract_hand_craft_file_name_with_label(csv_train_path, csv_test_path)
     hs.train(project_name)
     train_data = get_file_data_p(project_name, source_train_path, set(train_file),
                                  dict(zip(train_file, train_label)), dict(zip(train_file, train_hand_craft)))

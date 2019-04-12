@@ -53,7 +53,7 @@ projects = {
 candidate = {
     # 'vec_size': [4, 8, 16, 32, 64, 128, 256],
     # 'vec_size': [128, 256],
-    'vec_size': [30],
+    'vec_size': [55, 60, 75, 80],
     'number_of_filter': [10, 20, 50, 100, 150, 200],
     'filter_length': [2, 3, 5, 10, 20, 50, 100],
     'hidden_unit': [10, 20, 30, 50, 100, 150, 200, 250]
@@ -89,7 +89,7 @@ class GlobalVariable:
     dbn_params = {'output_size': 100, 'hidden_layer_num': 3, 'epochs': 1, 'batch_size': 10,
                   'imbalance': RandomOverSampler(), 'learning_rate': 0.1, 'regenerate': False}
 
-    config = {'logging_level': logging.CRITICAL,
+    config = {'logging_level': logging.INFO,
               'logging_format': '%(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
               'remake': False}
 
