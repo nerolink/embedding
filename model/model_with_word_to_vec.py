@@ -1,5 +1,6 @@
-from common.GlobalVariable import GlobalVariable as gv
-from common.utils import batch_getter, extract_hand_craft_file_name_with_label, print_result, padding_for_vec_batch
+from common.GlobalVariable import instance as global_var
+from common.utils import batch_getter, extract_hand_craft_file_name_with_label, print_result, padding_for_vec_batch, \
+    z_score
 import Huffman as hf
 import HierarchicalSoftmax as hs
 from keras.models import Model
@@ -13,7 +14,7 @@ import os
 import javalang as jl
 import logging
 
-logging.basicConfig(format=gv.config['logging_format'], level=gv.config['logging_level'])
+logging.basicConfig(format=global_var.config['logging_format'], level=global_var.config['logging_level'])
 
 
 def get_cnn(dict_params):
@@ -58,12 +59,14 @@ def get_cnn_plus(dict_params):
     out = Dense(1, activation='sigmoid')(concatenate)
     dp_cnn_model = Model(inputs=[cnn_model.input, hand_craft_model.input], outputs=out)
     dp_cnn_model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=dict_params['metrics'])
+    # dp_cnn_model.compile(loss='binary_crossentropy', optimizer='adams', metrics=dict_params['metrics'])
     return dp_cnn_model
 
 
-def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_hand_craft):
+def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_hand_craft, gv=global_var):
     """
     获取一个项目的标签，手工标注特征，完整类名，word2vec表示
+    :param gv:
     :param dict_file_hand_craft
     :param project_name 项目源文件
     :param path:
@@ -77,7 +80,7 @@ def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_han
     cache_name = '%s_%s_%d' % (path, method_name, gv.w2v_cnn_params['vec_size'])
     result = gv.load_cache(cache_name)
     if result is not None:
-        logging.warning('load cache success in %s' % cache_name)
+        logging.info('load cache success in %s' % cache_name)
         return result
     result = []
     for root, dirs, files in os.walk(path):
@@ -110,10 +113,11 @@ def get_file_data_p(project_name, path, set_file, dict_file_label, dict_file_han
     return result
 
 
-def train_and_test_cnn(project_name, train_name, test_name):
+def train_and_test_cnn(project_name, train_name, test_name, gv=global_var):
     train_data_x, _, train_data_y, test_data_x, _, test_data_y = \
         get_train_and_test_data(project_name, train_name, test_name)
     gv.load_token_vec_length(project_name)
+
     model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_w2v')
     cnn_model = gv.load_model(model_name)
     if cnn_model is None:
@@ -126,7 +130,8 @@ def train_and_test_cnn(project_name, train_name, test_name):
                 x = np.array(x)
                 cnn_model.train_on_batch([x], y)
                 del x
-        gv.dump_model(cnn_model, 'cnn_w2v')
+        gv.dump_model(cnn_model, model_name)
+
     del train_data_x
     del train_data_y
     p_y = np.array([])
@@ -146,24 +151,43 @@ def train_and_test_cnn(project_name, train_name, test_name):
     k.clear_session()
 
 
-def train_and_test_cnn_p(project_name, train_name, test_name):
+def train_and_test_cnn_p(project_name, train_name, test_name, gv=global_var):
     train_data_x, train_data_hand_craft, train_data_y, test_data_x, test_data_hand_craft, test_data_y = \
         get_train_and_test_data(project_name, train_name, test_name)
     gv.load_token_vec_length(project_name)
-    model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_plus_w2v')
-
-    cnn_model_p = gv.load_model(model_name)
-    if cnn_model_p is None:
-        cnn_model_p = get_cnn_plus(gv.w2v_cnn_params)
+    model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_w2v')
+    cnn_model = gv.load_model(model_name)
+    if cnn_model is None:
+        cnn_model = get_cnn(gv.w2v_cnn_params)
         for epoch in range(gv.w2v_cnn_params['epochs']):
             print('epoch:%d ' % epoch)
-            for step, (x, hc, y) in enumerate(
-                    batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft, train_data_y)):
+            for step, (x, y) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
                 print('----> batch:%d ' % step)
                 x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
-                cnn_model_p.train_on_batch([x, hc], y)
+                x = np.array(x)
+                cnn_model.train_on_batch([x], y)
+                inter_model = Model(inputs=cnn_model.input, outputs=cnn_model.get_layer(index=3).output)
+                print(np.array(inter_model.predict(x)).shape)
                 del x
-        gv.dump_model(cnn_model_p, 'cnn_plus_w2v')
+        gv.dump_model(cnn_model, model_name)
+
+    from sklearn.linear_model import LogisticRegression
+    cls = LogisticRegression(solver='lbfgs', max_iter=1000)
+    inter_model = Model(inputs=cnn_model.input, outputs=cnn_model.get_layer(index=3).output)
+    cls_train_data = None
+    for step, (x, hc) in enumerate(
+            batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft)):
+        print('----> batch:%d ' % step)
+        x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+        x = np.array(x)
+        x = inter_model.predict(x)
+        # x = z_score(x)
+        hc = np.array(hc)
+        cls_train_data = np.hstack((x, hc)) if cls_train_data is None else np.vstack(
+            (cls_train_data, np.hstack((x, hc))))
+        del x
+
+    cls.fit(cls_train_data, np.array(train_data_y))
     del train_data_x
     del train_data_hand_craft
     del train_data_y
@@ -171,7 +195,11 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
     for step, (x, hc, y) in enumerate(
             batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_hand_craft, test_data_y)):
         x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
-        _result = cnn_model_p.predict_on_batch([x, hc])
+        x = np.array(x)
+        x = inter_model.predict(x)
+        # x = z_score(x)
+        hc = np.array(hc)
+        _result = cls.predict(np.hstack((x, hc)))
         _result = _result.squeeze()
         p_y = np.hstack((_result, p_y))
     p_y = np.array(p_y, dtype=np.float64)
@@ -183,7 +211,7 @@ def train_and_test_cnn_p(project_name, train_name, test_name):
     k.clear_session()
 
 
-def get_train_and_test_data(project_name, train_name, test_name):
+def get_train_and_test_data(project_name, train_name, test_name, gv=global_var):
     from imblearn.over_sampling import RandomOverSampler
     ros = RandomOverSampler()
     csv_train_path = gv.csv_dir + train_name + '.csv'
@@ -196,7 +224,6 @@ def get_train_and_test_data(project_name, train_name, test_name):
     train_data = get_file_data_p(project_name, source_train_path, set(train_file),
                                  dict(zip(train_file, train_label)), dict(zip(train_file, train_hand_craft)))
     # [[],[],...[hand_craft_data],full_class_name] ,
-
     _features = np.array([x[1:] for x in train_data]).reshape(-1, 1)
     _labels = np.array([x[0] for x in train_data])
     gv.w2v_cnn_params['raw_train_size'] = len(_labels)
@@ -219,4 +246,9 @@ def get_train_and_test_data(project_name, train_name, test_name):
 
 
 if __name__ == '__main__':
-    train_and_test_cnn('camel', 'camel-1.2', 'camel-1.4')
+    import common.GlobalVariable as cgv
+    for pn, sources in cgv.projects.items():
+        for i in range(len(sources) - 1):
+            print("train name %s,test name %s" % (sources[i], sources[i + 1]))
+            tax, _, _, _, _, _ = get_train_and_test_data(pn, sources[i], sources[i + 1])
+            print(len(tax))

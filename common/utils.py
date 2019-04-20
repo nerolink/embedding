@@ -1,5 +1,5 @@
 import os
-from common.GlobalVariable import GlobalVariable as gv
+from common.GlobalVariable import instance as gv
 from common.GlobalVariable import types, head_names, features
 from common.CommonClass import VocabNode
 import javalang.tree as jlt
@@ -406,12 +406,170 @@ def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, te
                    f_1=f_1, mcc=mcc, auc=auc, model=model, y_true=y_true, y_pred=y_pred, sheet_name=sheet_name)
 
 
-if __name__ == '__main__':
-    import numpy as np
+def z_score(data):
+    """
+    :param data: np.array([[...],[...],...])
+    :return:
+    """
+    return (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
 
-    a = np.array([1, 1, 1, 1, 11, 1, 154, 8, 5, 7])
-    b = np.array([8, 9, 4, 2, 7, 6, 8, 36, 4, 2])
-    for (x, y) in batch_getter(3, a, b):
-        print(x)
-        print(y)
-        print()
+
+def min_max_score(data):
+    """
+    :param data:  np.array([[...],[...],...])
+    :return:
+    """
+    return (data - data.min(axis=1, keepdims=True)) / (
+            data.max(axis=1, keepdims=True) - data.min(axis=1, keepdims=True))
+
+
+def correct_source(all_source):
+    """
+    纠正一些代码的错误
+    :param all_source:所有项目的路径
+    :return:
+    """
+    import threadpool
+    from multiprocessing import cpu_count
+    import time
+    import re
+    pool = threadpool.ThreadPool(cpu_count())
+    enum_pattern = re.compile(r'[^a-zA-Z]enum')
+
+    def get_syntax_error_file(project_path):
+        """
+        :param project_path: 特定一个项目的路径
+        :return:
+        """
+        se_files = []
+        ue_files = []
+        ae_files = []
+        for root, dirs, files in os.walk(project_path):
+            for file in files:
+                if not file.endswith('.java'):
+                    continue
+                try:
+                    jl.parse.parse(open(os.path.join(root, file), encoding='utf-8').read())
+                except jl.parser.JavaSyntaxError:
+                    se_files.append(os.path.join(root, file))
+                except UnicodeDecodeError:
+                    ue_files.append(os.path.join(root, file))
+                except AttributeError:
+                    ae_files.append(os.path.join(root, file))
+
+        for file_path in se_files:
+            cache = []
+            for line in open(file_path, 'r').readlines():
+                cache.append(line)
+            with open(file_path, 'w') as file_obj:
+                advance = False  # 表示遇到assert语句的时候，是否需要删除多行
+                for line in cache:
+                    if line.__contains__('assert'):
+                        if line.__contains__(';'):
+                            advance = False
+                        else:
+                            advance = True
+                        continue
+                    if advance:
+                        if line.__contains__(';'):
+                            advance = False
+                        continue
+
+                    enum_list = re.findall(enum_pattern, line)
+                    for err in enum_list:
+                        corr = err.replace('enum', 'enum_')
+                        line = line.replace(err, corr)
+                    line = line.replace('package ${packageName};', ' ')
+                    file_obj.write(line if line.endswith('\n') else line + '\n')
+        for file_path in se_files:
+            print(file_path)
+        for file_path in ue_files + ae_files:
+            print(file_path)
+        logging.error('finishing processing project:%s,processed %s files ' % (project_path, len(se_files)))
+
+    list_var = []
+    for pj_path in os.listdir(all_source):
+        params = dict()
+        params['project_path'] = os.path.join(all_source, pj_path)
+        list_var.append((None, params))
+    start = time.time()
+    requests = threadpool.makeRequests(get_syntax_error_file, list_var)
+    [pool.putRequest(req) for req in requests]
+    pool.wait()
+    print('consume %d seconds' % (time.time() - start))
+
+
+def get_children_list(node):
+    """
+    有的子节点是list，要再递归一层拿到子节点
+    :param node: ast父节点
+    :return: 返回这个节点的所有子节点
+    """
+    result = []
+    for child in node.children:
+        if type(child) is list:
+            for _c in child:
+                c_name = get_node_name(_c)
+                if c_name is not None:
+                    result.append(c_name)
+        else:
+            child_name = get_node_name(child)
+            if child_name is not None:
+                result.append(child_name)
+    return result
+
+
+def get_parent_name(path):
+    """
+    返回某个AST节点的父节点的名称
+    :param path: AST节点对应的节点路径
+    :return: 父节点名称
+    """
+    if path is None or len(path) == 0 or (len(path) == 1 and type(path[0]) == type(list)):
+        return None
+    last_index = -2 if type(path[-1]) is list else -1
+    return get_node_name(path[last_index])
+
+
+def get_context(path, node):
+    """
+    返回某个节点对应的父节点和子节点组成的上下文
+    :param path:
+    :param node:
+    :return:
+    """
+    return [get_parent_name(path)] + get_children_list(node)
+
+
+def parse_ast_tree(file_path):
+    """
+    解析AST并把错误封装起来
+    :param file_path:
+    :return:
+    """
+    ast_tree = None
+    try:
+        ast_tree = jl.parse.parse(file_path)
+    except jl.parser.JavaSyntaxError:
+        logging.error('parse file %s java syntax error' % file_path)
+    except UnicodeDecodeError:
+        logging.error('parse file %s unicode decode error' % file_path)
+    except AttributeError:
+        logging.error('parse file %s attribute error' % file_path)
+    finally:
+        return ast_tree
+
+
+def show_ast(file_path):
+    """
+    把AST画成矢量图
+    :param file_path:
+    :return:
+    """
+    ast_tree = parse_ast_tree(file_path)
+    if ast_tree is None:
+        return
+
+
+if __name__ == '__main__':
+    correct_source('J:\\sdp\\projects')

@@ -1,4 +1,4 @@
-from common.GlobalVariable import GlobalVariable as gv
+from common.GlobalVariable import instance as gv
 import os
 
 

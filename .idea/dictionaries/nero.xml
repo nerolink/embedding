@@ -14,6 +14,7 @@
       <w>lbfgs</w>
       <w>levelname</w>
       <w>openpyxl</w>
+      <w>rbms</w>
       <w>relu</w>
       <w>rmsprop</w>
       <w>softmax</w>

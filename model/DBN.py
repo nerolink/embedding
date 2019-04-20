@@ -1,14 +1,14 @@
+import logging
 import tensorflow as tf
 import numpy as np
-from common.GlobalVariable import GlobalVariable as gv
+from common.GlobalVariable import instance as global_var
 from common.utils import get_all_need_class_name, ProjectData, get_md_data, print_result, padding_for_token_batch
 import warnings
 
 warnings.simplefilter("ignore", Warning)
 import os
-import logging
 
-logging.basicConfig(format=gv.config['logging_format'], level=gv.config['logging_level'])
+logging.basicConfig(format=global_var.config['logging_format'], level=global_var.config['logging_level'])
 
 
 class RBM(object):
@@ -186,6 +186,7 @@ class RBM(object):
 
 
 class DBN(object):
+
     def __init__(self, layers, params):
         """
         :param layers:      [] 用于确定每一层的node数量  [visible,h1,h2,h3......]
@@ -215,8 +216,9 @@ class DBN(object):
         return data
 
 
-def train_and_test_dbn(project_name, train_name, test_name, dict_params):
+def train_and_test_dbn(project_name, train_name, test_name, dict_params,gv=global_var):
     """
+    :param gv: 全局参数
     :param project_name:
     :param train_name:
     :param test_name:
@@ -265,8 +267,9 @@ def train_and_test_dbn(project_name, train_name, test_name, dict_params):
                  train_name=train_name, test_name=test_name, dict_param=dict_params, sheet_name='dbn')
 
 
-def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params):
+def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params,gv=global_var):
     """
+    :param gv: 全局参数
     :param project_name:
     :param train_name:
     :param test_name:
@@ -325,6 +328,5 @@ def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params):
 
 if __name__ == '__main__':
     import os
-
     # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-    train_and_test_dbn('camel', 'camel-1.2', 'camel-1.4', gv.dbn_params)
+    train_and_test_dbn('camel', 'camel-1.2', 'camel-1.4', global_var.dbn_params)

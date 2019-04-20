@@ -1,5 +1,5 @@
 import pandas as pd
-from GlobalVariable import GlobalVariable as gv
+from GlobalVariable import instance as gv
 import os
 
 
