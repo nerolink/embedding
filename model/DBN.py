@@ -264,7 +264,7 @@ def train_and_test_dbn(project_name, train_name, test_name, dict_params,gv=globa
     c_test_x = dbn.dbn_up(_test_ast)
     _y_predict = cls.predict(c_test_x)
     print_result(y_true=_test_label, y_pred=_y_predict, model='dbn', project_name=project_name,
-                 train_name=train_name, test_name=test_name, dict_param=dict_params, sheet_name='dbn')
+                 train_name=train_name, test_name=test_name, dict_params=dict_params, sheet_name='dbn')
 
 
 def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params,gv=global_var):
@@ -323,7 +323,7 @@ def train_and_test_dbn_plus(project_name, train_name, test_name, dict_params,gv=
 
     _y_predict = cls.predict(c_test_x)
     print_result(y_true=_test_label, y_pred=_y_predict, model='dbn_plus', project_name=project_name,
-                 train_name=train_name, test_name=test_name, dict_param=dict_params, sheet_name='dbn')
+                 train_name=train_name, test_name=test_name, dict_params=dict_params, sheet_name='dbn')
 
 
 if __name__ == '__main__':

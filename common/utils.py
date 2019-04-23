@@ -8,8 +8,13 @@ import pandas as pd
 import numpy as np
 from imblearn.over_sampling import RandomOverSampler
 import logging
+from graphviz import Graph
+from imblearn.over_sampling import RandomOverSampler
 
 logging.basicConfig(format=gv.config['logging_format'], level=gv.config['logging_level'])
+good_data = [['forrest-0.6', 'forrest-0.7'], ['poi-1.5', 'poi-2.0'], ['jedit-4.2', 'jedit-4.3'],
+             ['velocity-1.4', 'velocity-1.5'], ['xalan-2.4', 'xalan-2.5'], ['xerces-1.2', 'xerces-1.3'],
+             ['log4j-1.1', 'log4j-1.2']]
 
 
 class ProjectData(object):
@@ -117,7 +122,7 @@ class ProjectData(object):
             count += batch_size
 
 
-def get_md_data(datas, imbalance):
+def get_md_data(datas, imbalance=RandomOverSampler()):
     """
     返回csv和源码文件对应的数据，具体哪些数据看ProjectData的接口
     :param imbalance:
@@ -239,18 +244,18 @@ def get_full_class_name(root, file):
     return package_name + file[0:-5] if find else None
 
 
-def get_node_name(_node):
+def get_node_name(node):
     """
     给定javalang节点，返回符合要求的节点名称，如果不符合返回None
-    :param _node: javalang 节点
+    :param node: javalang 节点
     :return:
     """
-    if isinstance(_node, jlt.MethodInvocation) or isinstance(_node, jlt.SuperMethodInvocation):
-        return str(_node.member) + "()"
-    if isinstance(_node, jlt.ClassCreator):
-        return str(_node.type.name)
-    if type(_node) in types:
-        return _node.__class__.__name__
+    if isinstance(node, jlt.MethodInvocation) or isinstance(node, jlt.SuperMethodInvocation):
+        return str(node.member) + "()"
+    if isinstance(node, jlt.ClassCreator):
+        return str(node.type.name)
+    if type(node) in types:
+        return node.__class__.__name__
     return None
 
 
@@ -382,7 +387,7 @@ def extract_hand_craft_file_name_with_label(train_path, test_path):
            hand_craft_test_label, hand_craft_train_hand, hand_craft_test_hand
 
 
-def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, test_name, dict_param):
+def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, test_name, dict_params):
     """ 打印并持久化结果到data/result/sheet_name.csv中
     :param y_true:
     :param y_pred:
@@ -391,7 +396,7 @@ def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, te
     :param project_name:
     :param train_name:
     :param test_name:
-    :param dict_param: 存储到表中的参数
+    :param dict_params: 存储到表中的参数
     :return:
     """
     from sklearn.metrics import matthews_corrcoef, roc_auc_score, f1_score
@@ -402,7 +407,7 @@ def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, te
     print('\tf1-score:' + str(f_1))
     print('\tmcc:' + str(mcc))
     print('\tauc:' + str(auc))
-    gv.persistence(dict_params=dict_param, project_name=project_name, train_name=train_name, test_name=test_name,
+    gv.persistence(dict_params=dict_params, project_name=project_name, train_name=train_name, test_name=test_name,
                    f_1=f_1, mcc=mcc, auc=auc, model=model, y_true=y_true, y_pred=y_pred, sheet_name=sheet_name)
 
 
@@ -549,7 +554,7 @@ def parse_ast_tree(file_path):
     """
     ast_tree = None
     try:
-        ast_tree = jl.parse.parse(file_path)
+        ast_tree = jl.parse.parse(open(file_path, 'r').read())
     except jl.parser.JavaSyntaxError:
         logging.error('parse file %s java syntax error' % file_path)
     except UnicodeDecodeError:
@@ -560,16 +565,157 @@ def parse_ast_tree(file_path):
         return ast_tree
 
 
+def draw_tree(node, dot, parent_num, child_num):
+    """
+    递归地画AST
+    :param dot:
+    :param node:
+    :param parent_num:
+    :param child_num:
+    :return:
+    """
+    if node is None:
+        return
+    if type(node) == list:
+        if len(node) == 0:
+            return
+        count = 0
+        for child in node:
+            draw_tree(child, dot, str(parent_num), str(child_num) + str(count))
+            count = count + 1
+    else:
+        if isinstance(node, jlt.Node):
+            node_name = get_node_name(node)
+            if node_name is not None:
+                node_num = str(parent_num) + str(child_num)
+                dot.node(node_num, get_node_name(node), shape='box')
+                dot.edge(str(parent_num), node_num)
+                count = 0
+                for child in node.children:
+                    draw_tree(child, dot, node_num, str(count))
+                    count = count + 1
+            else:
+                count = 0
+                for child in node.children:
+                    draw_tree(child, dot, str(parent_num), str(child_num) + str(count))
+                    count = count + 1
+
+
 def show_ast(file_path):
     """
     把AST画成矢量图
-    :param file_path:
+    :param file_path: str
     :return:
     """
     ast_tree = parse_ast_tree(file_path)
     if ast_tree is None:
         return
+    dot = Graph(comment=file_path)
+    draw_tree(ast_tree, dot, '', '0')
+    pic_path = os.path.join(gv.data_path, 'picture')
+    if not os.path.exists(pic_path):
+        os.mkdir(pic_path)
+    dot.render(filename='ast', directory=pic_path, format='pdf', view=True)
+
+
+def pre_process(df, metric, reverse, retain_col=None, group=None):
+    if group is None:
+        group = ['Model', 'train_project']
+    if retain_col is None:
+        retain_col = ['project_name']
+
+    def process(t):
+        if t[metric] < 0.5 and reverse:
+            t[metric] = 1 - t[metric]
+        return t
+
+    retain_col.append(metric)
+    return df.apply(func=process, axis=1).groupby(group).apply(
+        lambda t: t[t[metric] == t[metric].max()].head(1)) \
+        .sort_values(by=metric, ascending=False)[retain_col].reset_index()
+
+
+def show_result(metric='auc', better=True, other_model_path=gv.plain_cnn_result_path, reverse=True):
+    """
+    :param reverse: 是否AUC取反
+    :param metric:测量方法
+    :param better: 是否只显示最好的
+    :param other_model_path: 对比的模型的结果路径，gv.plain_cnn_result_path ，gv.dbn_result_path
+    :return:
+    """
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.width', 1000)
+    on_col = 'train_project'
+    w2v = pre_process(pd.read_csv(gv.w2v_result_path), metric=metric, reverse=reverse, group=['train_project'])[[
+        'train_project', metric]]
+    pcnn = pre_process(pd.read_csv(other_model_path), metric=metric, reverse=reverse, group=['train_project'])[[
+        'train_project', metric]]
+    result = pd.merge(w2v, pcnn, on=on_col)
+    if better:
+        result = result[result['%s_x' % metric] + 0.04 > result['%s_y' % metric]]
+    model_name = ''
+    if other_model_path == gv.plain_cnn_result_path:
+        model_name = 'plain'
+    if other_model_path == gv.dbn_result_path:
+        model_name = 'dbn'
+    if other_model_path == gv.lr_result_path:
+        model_name = 'lr'
+    result.rename(columns={'%s_x' % metric: '%s_w2v' % metric, '%s_y' % metric: '%s_%s' % (metric, model_name)},
+                  inplace=True)
+    return result
+
+
+def get_best(metric='auc', mode='w2v', reverse=False):
+    """
+    返回每一个模型，每一个项目里最好的
+    :param metric:
+    :param mode:
+    :param reverse:对于auc<0.5的反转
+    :return:
+    """
+    result_path = None
+    retain_col = [metric]
+    if mode == 'w2v':
+        result_path = gv.w2v_result_path
+        retain_col.append('vec_size')
+    if mode == 'cnn':
+        result_path = gv.plain_cnn_result_path
+    if mode == 'dbn':
+        result_path = gv.dbn_result_path
+    return pre_process(pd.read_csv(result_path), metric=metric, reverse=reverse)
+
+
+def draw_bar_chart(reverse=False, metric='auc'):
+    import seaborn as sns
+    from matplotlib import pyplot as plt
+    sns.set_style(style='darkgrid')
+    r_w2v = pre_process(pd.read_csv(gv.w2v_result_path), metric, reverse, group=['train_project'])[[
+        'train_project', metric]]
+    r_dbn = pre_process(pd.read_csv(gv.dbn_result_path), metric, reverse, group=['train_project'])[[
+        'train_project', metric]]
+    r_cnn = pre_process(pd.read_csv(gv.plain_cnn_result_path), metric, reverse, group=['train_project'])[[
+        'train_project', metric]]
+
+
+def show_avg_files_and_buggy(train_file, test_file):
+    if not train_file.endswith('.csv'):
+        train_file = train_file + '.csv'
+    if not test_file.endswith('.csv'):
+        test_file = test_file + '.csv'
+    df = pd.read_csv(os.path.join(gv.csv_dir, train_file))
+    bug_count = len(df) - list(df.bug).count(0)
+    # bug_count = df.bug.sum()
+    file_count = len(df)
+    df = pd.read_csv(os.path.join(gv.csv_dir, test_file))
+    bug_count += len(df) - list(df.bug).count(0)
+    # bug_count += df.bug.sum()
+    file_count += len(df)
+    return bug_count * 1.0 / file_count, file_count * 1.0 / 2
 
 
 if __name__ == '__main__':
-    correct_source('J:\\sdp\\projects')
+    # for pair in good_data:
+    #     print(pair[0])
+    #     print(show_avg_files_and_buggy(pair[0], pair[1]))
+    show_ast('./klass.java')

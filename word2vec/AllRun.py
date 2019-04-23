@@ -7,6 +7,7 @@ from common.GlobalVariable import candidate
 import logging
 import time
 import HierarchicalSoftmax as hs
+from model.LR import train_and_test_lr
 
 projects = {'jedit': ['jedit-4.1', 'jedit-4.2', 'jedit-4.3']}
 logging.basicConfig(format=global_var.config['logging_format'], level=global_var.config['logging_level'])
@@ -98,7 +99,11 @@ def train_w2v():
     print('cost %d seconds' % (time.time() - start))
 
 
+def train_lr():
+    for project_name, sources in cgv.projects.items():
+        for i in range(len(sources) - 1):
+            train_and_test_lr(project_name, sources[i], sources[i + 1], {})
+
+
 if __name__ == '__main__':
-    train_w2v_cnn()
-    train_plain_cnn()
-    train_dbn()
+    train_lr()

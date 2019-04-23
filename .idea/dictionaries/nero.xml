@@ -6,6 +6,7 @@
       <w>crossentropy</w>
       <w>csvs</w>
       <w>cuda</w>
+      <w>darkgrid</w>
       <w>datas</w>
       <w>hscnnp</w>
       <w>indptr</w>
@@ -14,6 +15,7 @@
       <w>lbfgs</w>
       <w>levelname</w>
       <w>openpyxl</w>
+      <w>pcnn</w>
       <w>rbms</w>
       <w>relu</w>
       <w>rmsprop</w>

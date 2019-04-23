@@ -143,7 +143,7 @@ def train_and_test_cnn(project_name, train_name, test_name, gv=global_var):
         _result = _result.squeeze()
         p_y = np.hstack((_result, p_y))
     p_y = np.array(p_y, dtype=np.float64)
-    print_result(y_true=test_data_y, y_pred=p_y, dict_param=gv.w2v_cnn_params, project_name=project_name,
+    print_result(y_true=test_data_y, y_pred=p_y, dict_params=gv.w2v_cnn_params, project_name=project_name,
                  train_name=train_name, test_name=test_name, model='cnn_w2v', sheet_name='cnn_w2v')
     gv.w2v_cnn_params['train_project'] = train_name
     gv.w2v_cnn_params['test_project'] = test_name
@@ -203,7 +203,7 @@ def train_and_test_cnn_p(project_name, train_name, test_name, gv=global_var):
         _result = _result.squeeze()
         p_y = np.hstack((_result, p_y))
     p_y = np.array(p_y, dtype=np.float64)
-    print_result(y_true=test_data_y, y_pred=p_y, dict_param=gv.w2v_cnn_params, project_name=project_name,
+    print_result(y_true=test_data_y, y_pred=p_y, dict_params=gv.w2v_cnn_params, project_name=project_name,
                  train_name=train_name, test_name=test_name, model='cnn_plus_w2v', sheet_name='cnn_w2v')
     gv.w2v_cnn_params['train_project'] = train_name
     gv.w2v_cnn_params['test_project'] = test_name

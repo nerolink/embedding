@@ -56,7 +56,9 @@ projects = {
     'xerces': ['xerces-1.2', 'xerces-1.3', 'xerces-1.4.4']
 }
 candidate = {
-    'vec_size': [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60],
+    # 'vec_size': [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60],
+    # 'vec_size': [24, 28, 32, 36, 40, 44, 48, 52, 56, 60],
+    'vec_size': [64, 68, 72, 76, 80, 84, 88, 92, 96, 100],
     # 'vec_size': [128, 256],
     # 'vec_size': [55, 60, 75, 80],
     'number_of_filter': [10, 20, 50, 100, 150, 200],
@@ -108,7 +110,6 @@ class GlobalVariable:
 
         self.projects_source_dir = "M:\\sdp\\projects\\"
         self.csv_dir = "M:\\sdp\\csvs\\"
-
         self.hf_root = None
         self.training_data = []
         self.debug_map = {}
@@ -124,6 +125,11 @@ class GlobalVariable:
         self.word_to_vec_path = self.data_path + 'word_to_vec'
         self.result_path = self.data_path + 'result'
         self.model_path = self.data_path + 'model'
+        self.picture_path = self.data_path + 'picture'
+        self.w2v_result_path = self.result_path + '/cnn_w2v.csv'
+        self.plain_cnn_result_path = self.result_path + '/cnn_plain.csv'
+        self.dbn_result_path = self.result_path + '/dbn.csv'
+        self.lr_result_path = self.result_path + '/LogisticRegression.csv'
         self.current_project = None
 
     def get_steps_per_epoch(self, data_size):
@@ -238,7 +244,13 @@ class GlobalVariable:
         if not os.path.exists(cache_path):
             return None
         with open(cache_path, 'rb') as file_obj:
-            return pickle.load(file_obj)
+            result = None
+            try:
+                result = pickle.load(file_obj)
+            except EOFError:
+                result = None
+            finally:
+                return result
 
     def dump_model(self, model, model_name):
         model_path = os.path.join(self.model_path, model_name)
