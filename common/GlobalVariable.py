@@ -55,12 +55,20 @@ projects = {
     'xalan': ['xalan-2.4', 'xalan-2.5', 'xalan-2.6', 'xalan-2.7'],
     'xerces': ['xerces-1.2', 'xerces-1.3', 'xerces-1.4.4']
 }
+
+
+# projects = {
+#     'forrest': ['forrest-0.6', 'forrest-0.7'],
+#     'jedit': ['jedit-4.2', 'jedit-4.3'],
+#     'log4j': ['log4j-1.1', 'log4j-1.2'],
+#     'poi': ['poi-1.5', 'poi-2.0'],
+#     'velocity': ['velocity-1.4', 'velocity-1.5'],
+#     'xalan': ['xalan-2.4', 'xalan-2.5'],
+#     'xerces': ['xerces-1.2', 'xerces-1.3']
+# }
 candidate = {
-    # 'vec_size': [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60],
-    # 'vec_size': [24, 28, 32, 36, 40, 44, 48, 52, 56, 60],
-    'vec_size': [64, 68, 72, 76, 80, 84, 88, 92, 96, 100],
-    # 'vec_size': [128, 256],
-    # 'vec_size': [55, 60, 75, 80],
+    # 'vec_size': [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100],
+    'vec_size': [4, 8, 12, 16, 20, 24, 28, 32, 36, 40],
     'number_of_filter': [10, 20, 50, 100, 150, 200],
     'filter_length': [2, 3, 5, 10, 20, 50, 100],
     'hidden_unit': [10, 20, 30, 50, 100, 150, 200, 250]
@@ -131,6 +139,9 @@ class GlobalVariable:
         self.dbn_result_path = self.result_path + '/dbn.csv'
         self.lr_result_path = self.result_path + '/LogisticRegression.csv'
         self.current_project = None
+        self.last_result_w2v = 'D:\\OneDrive\\document\\paper\\result\\cnn_w2v.csv'
+        self.last_result_cnn = 'D:\\OneDrive\\document\\paper\\result\\cnn_plain.csv'
+        self.last_result_dbn = 'D:\\OneDrive\\document\\paper\\result\\dbn.csv'
 
     def get_steps_per_epoch(self, data_size):
         return (data_size + self.w2v_cnn_params['batch_size'] - 1) / self.w2v_cnn_params[

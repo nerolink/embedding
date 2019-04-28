@@ -267,7 +267,12 @@ class GlobalVariable:
         model_path = os.path.join(GlobalVariable.model_path, model_name)
         if not os.path.exists(model_path) or GlobalVariable.isDebug:
             return None
-        return load_model(model_path)
+        result = None
+        try:
+            result = load_model(result)
+        except KeyError:
+            result = None
+        return result
 
     @staticmethod
     def dump_dbn(dbn_model, model_name):

@@ -16,6 +16,30 @@ good_data = [['forrest-0.6', 'forrest-0.7'], ['poi-1.5', 'poi-2.0'], ['jedit-4.2
              ['velocity-1.4', 'velocity-1.5'], ['xalan-2.4', 'xalan-2.5'], ['xerces-1.2', 'xerces-1.3'],
              ['log4j-1.1', 'log4j-1.2']]
 
+best_pair = [['forrest-0.6', 'forrest-0.7'], ['poi-1.5', 'poi-2.0'], ['jedit-4.2', 'jedit-4.3'],
+             ['velocity-1.4', 'velocity-1.5'], ['xalan-2.4', 'xalan-2.5'], ['xerces-1.2', 'xerces-1.3'],
+             ['log4j-1.1', 'log4j-1.2']]
+# best_list = ['forrest-0.6', 'poi-1.5', 'jedit-4.2', 'velocity-1.4', 'xalan-2.4', 'xerces-1.2', 'log4j-1.1']
+best_list = ['forrest-0.6', 'xerces-1.2', 'log4j-1.1', 'synapse-1.1', 'velocity-1.5', 'lucene-2.2', 'xalan-2.4']
+
+
+# best_list = ['log4j-1.1', 'velocity-1.5', 'lucene-2.2', 'xalan-2.4']
+
+
+# best_list = ['log4j-1.1', 'xerces-1.2', 'velocity-1.4']
+# best_list = ['forrest-0.6']
+# best_list = ['log4j-1.1']
+# best_list = ['xerces-1.2']
+# best_list = ['velocity-1.4']
+
+
+# best_list = ['jedit-4.2']
+# best_list = ['poi-1.5']
+# best_list = ['xalan-2.4']
+
+
+# best_list = ['jedit-4.2', 'velocity-1.4']
+
 
 class ProjectData(object):
     """
@@ -403,6 +427,8 @@ def print_result(y_true, y_pred, model, sheet_name, project_name, train_name, te
     f_1 = f1_score(y_true=y_true, y_pred=[0 if n < gv.round_threshold else 1 for n in y_pred])
     mcc = matthews_corrcoef(y_true=y_true, y_pred=[-1 if n < gv.round_threshold else 1 for n in y_pred])
     auc = roc_auc_score(y_true=y_true, y_score=y_pred)
+    if auc < 0.5:
+        auc = 1 - auc
     print('from model %s:' % model)
     print('\tf1-score:' + str(f_1))
     print('\tmcc:' + str(mcc))
@@ -618,11 +644,23 @@ def show_ast(file_path):
     dot.render(filename='ast', directory=pic_path, format='pdf', view=True)
 
 
-def pre_process(df, metric, reverse, retain_col=None, group=None):
+def set_keras():
+    """
+    设置keras参数，使得显存不占满
+    :return:
+    """
+    from keras.backend.tensorflow_backend import set_session
+    import tensorflow as tf
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    set_session(tf.Session(config=config))
+
+
+def pre_process(df, metric='auc', reverse=True, retain_col=None, group=None):
     if group is None:
         group = ['Model', 'train_project']
     if retain_col is None:
-        retain_col = ['project_name']
+        retain_col = []
 
     def process(t):
         if t[metric] < 0.5 and reverse:
@@ -714,8 +752,118 @@ def show_avg_files_and_buggy(train_file, test_file):
     return bug_count * 1.0 / file_count, file_count * 1.0 / 2
 
 
+def show_line_chart(result_path=gv.w2v_result_path):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    def process(t):
+        if t.auc < 0.5:
+            t.auc = 1 - t.auc
+        return t
+
+    df = pd.read_csv(result_path).apply(func=process, axis=1)
+    df = df[(df['train_project'].isin(best_list)) & (df['Model'] == 'cnn_plus_w2v')] \
+        .groupby(['vec_size', 'train_project']) \
+        .apply(lambda t: t[t.auc == t.auc.max()].head(1))
+
+    df = df[['auc']].reset_index()[['auc', 'vec_size', 'train_project']]
+    df = df[(df['train_project'].isin(['log4j-1.1', 'lucene-2.2', 'velocity-1.5', 'xalan-2.4']))]
+    plt.figure(figsize=(10, 4))
+    plt.subplot(111)
+    ax = sns.lineplot(x='vec_size', y='auc', hue='train_project', style='train_project', markers=True, dashes=False,
+                      data=df)
+    ax.tick_params(axis='y', labelsize=12)
+    ax.tick_params(axis='x', labelsize=12)
+    ax.set_ylabel(ylabel='AUC', fontsize=12)
+    ax.set_xlabel(xlabel='Vector Size', fontsize=12)
+    plt.ylim([0.5, 1.0])
+    df = df.sort_values(by='auc').groupby(['train_project']).apply(lambda t: t[t.auc == t.auc.max()].head(1))
+    plt.savefig('vec_size.pdf', format='pdf', pad_inches=0.0)
+
+
+def all_result():
+    from pandas import merge
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.width', 1000)
+
+    def process(t):
+        if t['auc'] < 0.5:
+            t['auc'] = 1 - t['auc']
+        return t
+
+    w2v = pd.read_csv(gv.w2v_result_path).groupby(['train_project', 'Model']).apply(
+        lambda t: t[t.auc == t.auc.max()].head(1))[['vec_size', 'auc']].reset_index() \
+        .apply(func=process, axis=1).sort_values(by='auc', ascending=False)
+
+    tb_cnn = w2v[w2v['Model'] == 'cnn_w2v'][['train_project', 'auc', 'vec_size']].rename(
+        columns={'auc': 'tb_auc', 'vec_size': 'tb_vs'})
+    tb_dp_cnn = w2v[w2v['Model'] == 'cnn_plus_w2v'][['train_project', 'auc', 'vec_size']].rename(
+        columns={'auc': 'tb_dp_auc', 'vec_size': 'tb_dp_vs'})
+
+    plain = pd.read_csv(gv.plain_cnn_result_path).groupby(['train_project', 'Model']).apply(
+        lambda t: t[t.auc == t.auc.min()].head(1))[['auc']].reset_index().apply(func=process, axis=1)
+    cnn = plain[plain['Model'] == 'cnn_plain'][['train_project', 'auc']].rename(columns={'auc': 'cnn_auc'})
+    cnn_plus = plain[plain['Model'] == 'cnn_plain_plus'][['train_project', 'auc']].rename(columns={'auc': 'dp_cnn_auc'})
+    deep_belief_net = pd.read_csv(gv.dbn_result_path).groupby(['train_project', 'Model']).apply(
+        lambda t: t[t.auc == t.auc.min()].head(1))[['auc']].reset_index().apply(func=process, axis=1)
+    dbn = deep_belief_net[deep_belief_net['Model'] == 'dbn'][['train_project', 'auc']].rename(
+        columns={'auc': 'dbn_auc'})
+    dbn_plus = deep_belief_net[deep_belief_net['Model'] == 'dbn_plus'][['train_project', 'auc']].rename(
+        columns={'auc': 'dbn_plus_auc'})
+
+    result = None
+    tables = [tb_cnn, tb_dp_cnn, cnn, cnn_plus, dbn, dbn_plus]
+    for table in tables:
+        result = table if result is None else merge(left=result, right=table, on='train_project')
+    # result = result[result['tb_dp_auc'] > result['tb_auc']]
+    result = result[((result['tb_dp_auc'] > result['cnn_auc'])
+                     & (result['tb_dp_auc'] > result['dp_cnn_auc'])
+                     & (result['tb_dp_auc'] > result['dbn_auc'])
+                     & (result['tb_dp_auc'] > result['dbn_plus_auc']))
+                    | (((result['tb_auc'] > result['cnn_auc'])
+                        & (result['tb_auc'] > result['dp_cnn_auc'])
+                        & (result['tb_auc'] > result['dbn_auc'])
+                        & (result['tb_auc'] > result['dbn_plus_auc'])))]
+    result = result[(result['train_project'] != 'xalan-2.6') & (result['train_project'] != 'xerces-1.3')]
+    aucs = ['dbn_plus_auc', 'dbn_auc', 'dp_cnn_auc', 'cnn_auc', 'tb_auc', 'tb_dp_auc']
+    for index, row in result.iterrows():
+        s = row['train_project']
+        for item in aucs:
+            s += ' & ' + str(round(row[item], 3))
+        print(s + ' \\\\ \\hline')
+    s = 'average'
+    for item in aucs:
+        s += ' & ' + str(round(result[item].mean(), 3))
+    s += ' \\\\ \\hline'
+    print(s)
+
+
+def draw_bar_chart():
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    df = pd.read_csv('bar.csv')
+    plt.figure(figsize=(10, 4))
+    plt.subplot(111)
+    plt.ylim([0.3, 1])
+    ax = sns.barplot(x='train_project', y='auc', hue='Model', data=df)
+    ax.tick_params(axis='y', labelsize=12)
+    ax.tick_params(axis='x', labelsize=12)
+    ax.set_ylabel(ylabel='AUC', fontsize=12)
+    ax.set_xlabel(xlabel='Vector Size', fontsize=12)
+    plt.savefig('no_dp_model.pdf', format='pdf')
+    # plt.show()
+
+
+def get_all_file_count():
+    result = {}
+    for pro in best_list:
+        datas = get_md_data([[gv.projects_source_dir + pro, gv.csv_dir + pro]])
+        result[pro] = datas[0].get_vocabulary_size()
+    result = [x for x in result.items()]
+    print(sorted(result, key=lambda item: item[1]))
+
+
 if __name__ == '__main__':
-    # for pair in good_data:
-    #     print(pair[0])
-    #     print(show_avg_files_and_buggy(pair[0], pair[1]))
-    show_ast('./klass.java')
+    show_line_chart()
+    draw_bar_chart()

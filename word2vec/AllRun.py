@@ -1,3 +1,5 @@
+import os
+
 import model.model_with_word_to_vec as md
 import model.CNN as pc
 import model.DBN as dn
@@ -8,6 +10,7 @@ import logging
 import time
 import HierarchicalSoftmax as hs
 from model.LR import train_and_test_lr
+import threading
 
 projects = {'jedit': ['jedit-4.1', 'jedit-4.2', 'jedit-4.3']}
 logging.basicConfig(format=global_var.config['logging_format'], level=global_var.config['logging_level'])
@@ -79,23 +82,33 @@ def train_dbn(gv=global_var):
             dn.train_and_test_dbn_plus(project_name, sources[i], sources[i + 1], gv.dbn_params)
 
 
+class TaskTrainW2v(threading.Thread):
+    def __init__(self, project_name, vec_size) -> None:
+        super().__init__()
+        self.start = time.time()
+        self.project_name = project_name
+        self.vec_size = vec_size
+
+    def run(self) -> None:
+        import time
+        from GlobalVariable import GlobalVariable
+        print('start training project:%s,vec_size %d:' % (self.project_name, self.vec_size))
+        g_v = GlobalVariable()
+        g_v.w2v_cnn_params['vec_size'] = self.vec_size
+        hs.train(self.project_name, g_v)
+        print('finish training project:%s,vec_size %d:,cost:%s'
+              % (self.project_name, self.vec_size, time.time() - self.start))
+
+
 def train_w2v():
-    import threadpool
-    from multiprocessing import cpu_count
-    from GlobalVariable import GlobalVariable
-    var_list = []
-    pool = threadpool.ThreadPool(cpu_count())
     start = time.time()
+    tasks = []
     for vec_size in candidate['vec_size']:
         for project_name in cgv.projects.keys():
-            params = dict()
-            params['project_name'] = project_name
-            params['gv'] = GlobalVariable()
-            params['gv'].w2v_cnn_params['vec_size'] = vec_size
-            var_list.append((None, params))
-    requests = threadpool.makeRequests(hs.train, var_list)
-    [pool.putRequest(req) for req in requests]
-    pool.wait()
+            tasks.append(TaskTrainW2v(project_name, vec_size))
+            tasks[-1].start()
+    for task in tasks:
+        task.join()
     print('cost %d seconds' % (time.time() - start))
 
 
@@ -105,5 +118,24 @@ def train_lr():
             train_and_test_lr(project_name, sources[i], sources[i + 1], {})
 
 
+def del_model():
+    import os
+    for root, dirs, files in os.walk(global_var.data_path + 'model'):
+        for file in files:
+            if file.__contains__('plain') or file.__contains__('dbn'):
+                os.remove(os.path.join(root, file))
+
+
 if __name__ == '__main__':
-    train_lr()
+    # from keras.models import load_model
+    #
+    # for root, dirs, files in os.walk(global_var.data_path + '/model'):
+    #     for file in files:
+    #         if not file.__contains__('cnn'):
+    #             continue
+    #         print(file)
+    #         load_model(os.path.join(root, file))
+
+    # train_plain_cnn()
+    # train_dbn()
+    train_w2v_cnn()

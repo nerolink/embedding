@@ -170,39 +170,32 @@ def train_and_test_cnn_p(project_name, train_name, test_name, gv=global_var):
                 print(np.array(inter_model.predict(x)).shape)
                 del x
         gv.dump_model(cnn_model, model_name)
-
     from sklearn.linear_model import LogisticRegression
     cls = LogisticRegression(solver='lbfgs', max_iter=1000)
-    inter_model = Model(inputs=cnn_model.input, outputs=cnn_model.get_layer(index=3).output)
-    cls_train_data = None
-    for step, (x, hc) in enumerate(
-            batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft)):
+    cls.fit(X=train_data_hand_craft, y=train_data_y)
+    final_cls = LogisticRegression(solver='lbfgs', max_iter=1000)
+    final_data = np.array([])
+
+    for step, (x, _) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
         print('----> batch:%d ' % step)
         x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
         x = np.array(x)
-        x = inter_model.predict(x)
-        # x = z_score(x)
-        hc = np.array(hc)
-        cls_train_data = np.hstack((x, hc)) if cls_train_data is None else np.vstack(
-            (cls_train_data, np.hstack((x, hc))))
-        del x
+        cnn_p = cnn_model.predict_on_batch([x]).reshape(-1)
+        final_data = np.hstack((final_data, cnn_p))
+    final_data = final_data.reshape((len(final_data), 1))
+    cls_data = np.array(cls.predict(X=train_data_hand_craft)).reshape((len(final_data), 1))
+    final_data = np.hstack((final_data, cls_data))
+    final_cls.fit(X=final_data, y=train_data_y)
 
-    cls.fit(cls_train_data, np.array(train_data_y))
-    del train_data_x
-    del train_data_hand_craft
-    del train_data_y
     p_y = np.array([])
-    for step, (x, hc, y) in enumerate(
-            batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_hand_craft, test_data_y)):
+    for step, (x, hc) in enumerate(
+            batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_hand_craft)):
+        print('----> batch:%d ' % step)
         x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
-        x = np.array(x)
-        x = inter_model.predict(x)
-        # x = z_score(x)
-        hc = np.array(hc)
-        _result = cls.predict(np.hstack((x, hc)))
-        _result = _result.squeeze()
-        p_y = np.hstack((_result, p_y))
-    p_y = np.array(p_y, dtype=np.float64)
+        p_cnn = cnn_model.predict_on_batch(x=np.array(x)).reshape((len(x), 1))
+        p_cls = cls.predict(X=hc).reshape((len(x), 1))
+        p_y = np.hstack((p_y, final_cls.predict(np.hstack((p_cnn, p_cls)))))
+
     print_result(y_true=test_data_y, y_pred=p_y, dict_params=gv.w2v_cnn_params, project_name=project_name,
                  train_name=train_name, test_name=test_name, model='cnn_plus_w2v', sheet_name='cnn_w2v')
     gv.w2v_cnn_params['train_project'] = train_name
@@ -211,6 +204,64 @@ def train_and_test_cnn_p(project_name, train_name, test_name, gv=global_var):
     k.clear_session()
 
 
+# def train_and_test_cnn_p(project_name, train_name, test_name, gv=global_var):
+#     train_data_x, train_data_hand_craft, train_data_y, test_data_x, test_data_hand_craft, test_data_y = \
+#         get_train_and_test_data(project_name, train_name, test_name)
+#     gv.load_token_vec_length(project_name)
+#     model_name = '%s~~%d~~%s' % (train_name, gv.w2v_cnn_params['vec_size'], 'cnn_w2v')
+#     cnn_model = gv.load_model(model_name)
+#     if cnn_model is None:
+#         cnn_model = get_cnn(gv.w2v_cnn_params)
+#         for epoch in range(gv.w2v_cnn_params['epochs']):
+#             print('epoch:%d ' % epoch)
+#             for step, (x, y) in enumerate(batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_y)):
+#                 print('----> batch:%d ' % step)
+#                 x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+#                 x = np.array(x)
+#                 cnn_model.train_on_batch([x], y)
+#                 inter_model = Model(inputs=cnn_model.input, outputs=cnn_model.get_layer(index=3).output)
+#                 print(np.array(inter_model.predict(x)).shape)
+#                 del x
+#         gv.dump_model(cnn_model, model_name)
+#
+#     from sklearn.linear_model import LogisticRegression
+#     cls = LogisticRegression(solver='lbfgs', max_iter=1000)
+#     inter_model = Model(inputs=cnn_model.input, outputs=cnn_model.get_layer(index=3).output)
+#     cls_train_data = None
+#     for step, (x, hc) in enumerate(
+#             batch_getter(gv.w2v_cnn_params['batch_size'], train_data_x, train_data_hand_craft)):
+#         print('----> batch:%d ' % step)
+#         x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+#         x = np.array(x)
+#         x = inter_model.predict(x)
+#         # x = z_score(x)
+#         hc = np.array(hc)
+#         cls_train_data = np.hstack((x, hc)) if cls_train_data is None else np.vstack(
+#             (cls_train_data, np.hstack((x, hc))))
+#         del x
+#
+#     cls.fit(cls_train_data, np.array(train_data_y))
+#     del train_data_x
+#     del train_data_hand_craft
+#     del train_data_y
+#     p_y = np.array([])
+#     for step, (x, hc, y) in enumerate(
+#             batch_getter(gv.w2v_cnn_params['batch_size'], test_data_x, test_data_hand_craft, test_data_y)):
+#         x = padding_for_vec_batch(x, gv.w2v_cnn_params['token_vec_length'])
+#         x = np.array(x)
+#         x = inter_model.predict(x)
+#         # x = z_score(x)
+#         hc = np.array(hc)
+#         _result = cls.predict(np.hstack((x, hc)))
+#         _result = _result.squeeze()
+#         p_y = np.hstack((_result, p_y))
+#     p_y = np.array(p_y, dtype=np.float64)
+#     print_result(y_true=test_data_y, y_pred=p_y, dict_params=gv.w2v_cnn_params, project_name=project_name,
+#                  train_name=train_name, test_name=test_name, model='cnn_plus_w2v', sheet_name='cnn_w2v')
+#     gv.w2v_cnn_params['train_project'] = train_name
+#     gv.w2v_cnn_params['test_project'] = test_name
+#     import keras.backend as k
+#     k.clear_session()
 def get_train_and_test_data(project_name, train_name, test_name, gv=global_var):
     from imblearn.over_sampling import RandomOverSampler
     ros = RandomOverSampler()
@@ -247,6 +298,7 @@ def get_train_and_test_data(project_name, train_name, test_name, gv=global_var):
 
 if __name__ == '__main__':
     import common.GlobalVariable as cgv
+
     for pn, sources in cgv.projects.items():
         for i in range(len(sources) - 1):
             print("train name %s,test name %s" % (sources[i], sources[i + 1]))
